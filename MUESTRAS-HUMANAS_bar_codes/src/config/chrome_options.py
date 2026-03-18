@@ -29,7 +29,7 @@ def obtener_opciones_chrome():
     chrome_options.add_argument("--disable-sync")
     chrome_options.add_argument("--no-first-run")
     chrome_options.add_argument("--disable-popup-blocking")
-    chrome_options.add_argument("--single-process")
+    
     chrome_options.add_argument("--disable-web-security")
     chrome_options.add_argument("--disable-features=VizDisplayCompositor")
     chrome_options.add_argument("--memory-pressure-off")
