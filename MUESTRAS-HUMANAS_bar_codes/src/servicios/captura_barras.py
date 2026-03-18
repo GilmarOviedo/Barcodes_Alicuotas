@@ -2,7 +2,6 @@
 
 import os
 import time
-import subprocess
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
@@ -23,13 +22,14 @@ from src.utilidades import (
 
 
 def manejar_alerta_si_existe(driver):
-    """Acepta cualquier alerta/popup de REDCap si está presente."""
+    """Cancela cualquier alerta/popup de REDCap si está presente."""
     try:
+        WebDriverWait(driver, 2).until(EC.alert_is_present())
         alert = Alert(driver)
         texto = alert.text
-        st.warning(f"⚠️ Alerta REDCap detectada — aceptando: {texto[:80]}...")
-        alert.dismiss()  # CANCELAR — no borra valores existentes
-        time.sleep(0.5)
+        st.warning(f"⚠️ Alerta REDCap — cancelando: {texto[:80]}...")
+        alert.dismiss()  # CANCELAR — no borra valores, barcode aparece igual
+        time.sleep(0.8)
         return True
     except Exception:
         return False
@@ -47,7 +47,7 @@ def capturar_alicuota_con_dropdown(driver, wait, numero_alicuota, carpeta, recor
             EC.presence_of_element_located((By.NAME, nombre_dropdown))
         )
 
-        # Forzar visibilidad con JavaScript si está oculto
+        # Forzar visibilidad del dropdown con JavaScript
         driver.execute_script(
             "arguments[0].style.display='block'; arguments[0].style.visibility='visible';",
             elemento_dropdown
@@ -63,7 +63,7 @@ def capturar_alicuota_con_dropdown(driver, wait, numero_alicuota, carpeta, recor
         # Manejar alerta después del scroll
         manejar_alerta_si_existe(driver)
 
-        # Seleccionar MODERNA usando JavaScript para evitar problemas de visibilidad
+        # Seleccionar MODERNA usando JavaScript
         driver.execute_script(
             "arguments[0].value = '4'; arguments[0].dispatchEvent(new Event('change'));",
             elemento_dropdown
@@ -71,7 +71,7 @@ def capturar_alicuota_con_dropdown(driver, wait, numero_alicuota, carpeta, recor
         st.info(f"✅ MODERNA seleccionada en alícuota {numero_alicuota}")
         time.sleep(1.5)
 
-        # Manejar alerta después de seleccionar
+        # Manejar alerta después de seleccionar — CANCELAR para no borrar valores
         manejar_alerta_si_existe(driver)
 
         if numero_alicuota == 3:
@@ -82,22 +82,19 @@ def capturar_alicuota_con_dropdown(driver, wait, numero_alicuota, carpeta, recor
         selector_barcode = f"tr#{id_barcode_tr}"
         st.info(f"🔍 Buscando código de barras: {selector_barcode}")
 
+        # Esperar visibilidad natural — sin forzar con JS para no distorsionar recorte
         elemento_barcode = wait.until(
-            EC.presence_of_element_located((By.CSS_SELECTOR, selector_barcode))
+            EC.visibility_of_element_located((By.CSS_SELECTOR, selector_barcode))
         )
 
-        # Forzar visibilidad del barcode
-        driver.execute_script(
-            "arguments[0].style.display='table-row'; arguments[0].style.visibility='visible';",
-            elemento_barcode
-        )
-
+        # Scroll al código de barras
         driver.execute_script(
             "arguments[0].scrollIntoView({block: 'center'});",
             elemento_barcode
         )
         time.sleep(1.0)
 
+        # Manejar alerta antes de capturar
         manejar_alerta_si_existe(driver)
 
         nombre_archivo = f"{record_id}_alicuota_{numero_alicuota}.png"
@@ -105,6 +102,7 @@ def capturar_alicuota_con_dropdown(driver, wait, numero_alicuota, carpeta, recor
         elemento_barcode.screenshot(ruta_imagen)
         st.success(f"📸 Screenshot guardado: {nombre_archivo}")
 
+        # Recorte original sin modificar
         if numero_alicuota == 3:
             recortar_imagen_alicuota_3(ruta_imagen)
         else:
@@ -112,12 +110,12 @@ def capturar_alicuota_con_dropdown(driver, wait, numero_alicuota, carpeta, recor
 
         return ruta_imagen
 
-    except UnexpectedAlertPresentException as e:
+    except UnexpectedAlertPresentException:
         manejar_alerta_si_existe(driver)
         st.warning(f"⚠️ Alerta inesperada en alícuota {numero_alicuota} Record {record_id} — continuando")
         return None
     except TimeoutException:
-        st.warning(f"⚠️ TIMEOUT — Alícuota {numero_alicuota} Record {record_id}: no encontrado — puede que no exista para este registro")
+        st.warning(f"⚠️ TIMEOUT — Alícuota {numero_alicuota} Record {record_id}: no visible — puede que no exista para este registro")
         return None
     except NoSuchElementException:
         st.warning(f"⚠️ NO EXISTE — Alícuota {numero_alicuota} Record {record_id}: elemento no existe — puede que no aplique")
