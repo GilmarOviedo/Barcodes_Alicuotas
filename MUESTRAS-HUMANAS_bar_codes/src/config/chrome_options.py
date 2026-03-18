@@ -3,7 +3,9 @@ from selenium.webdriver.chrome.options import Options
 
 def obtener_opciones_chrome():
     chrome_options = Options()
-    chrome_options.binary_location = "/usr/bin/chromium-browser"
+    
+    # Ruta correcta en Streamlit Cloud Debian Trixie
+    chrome_options.binary_location = "/usr/bin/chromium"
     
     chrome_options.add_argument("--headless=new")
     chrome_options.add_argument("--no-sandbox")
