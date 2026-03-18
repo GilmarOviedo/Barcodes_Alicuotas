@@ -1,4 +1,4 @@
-```python
+
 """
 Sistema de Extracción de Códigos de Barras - Alícuotas RedCap
 """
@@ -219,4 +219,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-```
+
