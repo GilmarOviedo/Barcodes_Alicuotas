@@ -2,13 +2,14 @@
 
 import os
 import time
+import subprocess
 from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait, Select
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
 import streamlit as st
-from selenium.webdriver.chrome.service import Service
 
 from src.config import obtener_opciones_chrome, ConfiguracionURL
 from src.utilidades import (
@@ -95,7 +96,13 @@ def descargar_codigos_barras_alicuotas(record_ids, usuario, password):
         carpeta = crear_directorio_temporal("codigos_barras_alicuotas")
 
         try:
-            service = Service("/usr/bin/chromedriver")
+            # Usar chromedriver del sistema directamente
+            chromedriver_path = subprocess.check_output(
+                ["which", "chromedriver"], text=True
+            ).strip()
+            st.info(f"🔍 Chromedriver en: {chromedriver_path}")
+
+            service = Service(chromedriver_path)
             driver = webdriver.Chrome(service=service, options=opciones_chrome)
             st.success("✅ Chrome iniciado correctamente")
         except Exception as e:
