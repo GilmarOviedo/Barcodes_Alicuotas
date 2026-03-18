@@ -2,12 +2,16 @@
 
 import os
 import time
+import subprocess
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait, Select
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException, NoSuchElementException
+from selenium.common.exceptions import (
+    TimeoutException, NoSuchElementException, UnexpectedAlertPresentException
+)
+from selenium.webdriver.common.alert import Alert
 import streamlit as st
 
 from src.config import obtener_opciones_chrome, ConfiguracionURL
@@ -18,26 +22,57 @@ from src.utilidades import (
 )
 
 
+def manejar_alerta_si_existe(driver):
+    """Acepta cualquier alerta/popup de REDCap si está presente."""
+    try:
+        alert = Alert(driver)
+        texto = alert.text
+        st.warning(f"⚠️ Alerta REDCap detectada — aceptando: {texto[:80]}...")
+        alert.dismiss()  # CANCELAR — no borra valores existentes
+        time.sleep(0.5)
+        return True
+    except Exception:
+        return False
+
+
 def capturar_alicuota_con_dropdown(driver, wait, numero_alicuota, carpeta, record_id):
     try:
+        # Manejar alerta antes de empezar
+        manejar_alerta_si_existe(driver)
+
         nombre_dropdown = f"alic{numero_alicuota}_dest_2"
         st.info(f"🔍 Buscando dropdown: {nombre_dropdown}")
 
         elemento_dropdown = wait.until(
             EC.presence_of_element_located((By.NAME, nombre_dropdown))
         )
-        st.success(f"✅ Dropdown encontrado: {nombre_dropdown}")
 
+        # Forzar visibilidad con JavaScript si está oculto
+        driver.execute_script(
+            "arguments[0].style.display='block'; arguments[0].style.visibility='visible';",
+            elemento_dropdown
+        )
+
+        # Scroll al dropdown
         driver.execute_script(
             "arguments[0].scrollIntoView({block: 'center'});",
             elemento_dropdown
         )
         time.sleep(0.5)
 
-        select = Select(elemento_dropdown)
-        select.select_by_value("4")
+        # Manejar alerta después del scroll
+        manejar_alerta_si_existe(driver)
+
+        # Seleccionar MODERNA usando JavaScript para evitar problemas de visibilidad
+        driver.execute_script(
+            "arguments[0].value = '4'; arguments[0].dispatchEvent(new Event('change'));",
+            elemento_dropdown
+        )
         st.info(f"✅ MODERNA seleccionada en alícuota {numero_alicuota}")
         time.sleep(1.5)
+
+        # Manejar alerta después de seleccionar
+        manejar_alerta_si_existe(driver)
 
         if numero_alicuota == 3:
             id_barcode_tr = "moderna_id_t-tr"
@@ -48,15 +83,22 @@ def capturar_alicuota_con_dropdown(driver, wait, numero_alicuota, carpeta, recor
         st.info(f"🔍 Buscando código de barras: {selector_barcode}")
 
         elemento_barcode = wait.until(
-            EC.visibility_of_element_located((By.CSS_SELECTOR, selector_barcode))
+            EC.presence_of_element_located((By.CSS_SELECTOR, selector_barcode))
         )
-        st.success(f"✅ Código de barras encontrado: {selector_barcode}")
+
+        # Forzar visibilidad del barcode
+        driver.execute_script(
+            "arguments[0].style.display='table-row'; arguments[0].style.visibility='visible';",
+            elemento_barcode
+        )
 
         driver.execute_script(
             "arguments[0].scrollIntoView({block: 'center'});",
             elemento_barcode
         )
         time.sleep(1.0)
+
+        manejar_alerta_si_existe(driver)
 
         nombre_archivo = f"{record_id}_alicuota_{numero_alicuota}.png"
         ruta_imagen = os.path.join(carpeta, nombre_archivo)
@@ -70,17 +112,19 @@ def capturar_alicuota_con_dropdown(driver, wait, numero_alicuota, carpeta, recor
 
         return ruta_imagen
 
+    except UnexpectedAlertPresentException as e:
+        manejar_alerta_si_existe(driver)
+        st.warning(f"⚠️ Alerta inesperada en alícuota {numero_alicuota} Record {record_id} — continuando")
+        return None
     except TimeoutException:
-        st.error(f"❌ TIMEOUT — Alícuota {numero_alicuota} Record {record_id}: elemento no encontrado en 30s")
-        st.code(f"URL actual: {driver.current_url}")
+        st.warning(f"⚠️ TIMEOUT — Alícuota {numero_alicuota} Record {record_id}: no encontrado — puede que no exista para este registro")
         return None
     except NoSuchElementException:
-        st.error(f"❌ NO EXISTE — Alícuota {numero_alicuota} Record {record_id}: elemento no existe en la página")
-        st.code(f"URL actual: {driver.current_url}")
+        st.warning(f"⚠️ NO EXISTE — Alícuota {numero_alicuota} Record {record_id}: elemento no existe — puede que no aplique")
         return None
     except Exception as e:
-        st.error(f"❌ ERROR INESPERADO — Alícuota {numero_alicuota} Record {record_id}: {str(e)}")
-        st.code(f"URL actual: {driver.current_url}")
+        st.error(f"❌ ERROR — Alícuota {numero_alicuota} Record {record_id}: {str(e)[:150]}")
+        manejar_alerta_si_existe(driver)
         return None
 
 
@@ -95,7 +139,6 @@ def descargar_codigos_barras_alicuotas(record_ids, usuario, password):
         carpeta = crear_directorio_temporal("codigos_barras_alicuotas")
 
         try:
-            # Buscar chromedriver en rutas conocidas de Streamlit Cloud
             posibles_paths = [
                 "/usr/bin/chromedriver",
                 "/usr/lib/chromium-browser/chromedriver",
@@ -139,6 +182,9 @@ def descargar_codigos_barras_alicuotas(record_ids, usuario, password):
                 st.info(f"🌐 Navegando a: {url_laboratorio}")
                 driver.get(url_laboratorio)
 
+                # Manejar alerta al cargar la página
+                manejar_alerta_si_existe(driver)
+
                 try:
                     WebDriverWait(driver, 10).until(
                         EC.presence_of_element_located((By.CSS_SELECTOR, "table tbody"))
@@ -146,10 +192,10 @@ def descargar_codigos_barras_alicuotas(record_ids, usuario, password):
                     st.success(f"✅ Página cargada — Record ID: {id_val}")
                 except TimeoutException:
                     st.error(f"❌ Página NO cargó para Record ID {id_val}")
-                    st.code(f"URL actual: {driver.current_url}")
                     continue
 
                 time.sleep(1.5)
+                manejar_alerta_si_existe(driver)
 
                 for num_alicuota in [3, 4, 5, 6]:
                     archivo_capturado = capturar_alicuota_con_dropdown(
@@ -160,7 +206,8 @@ def descargar_codigos_barras_alicuotas(record_ids, usuario, password):
                     time.sleep(0.3)
 
             except Exception as e:
-                st.error(f"❌ Error en Record ID {id_val}: {str(e)}")
+                manejar_alerta_si_existe(driver)
+                st.error(f"❌ Error en Record ID {id_val}: {str(e)[:150]}")
                 continue
 
         st.info(f"📦 Total capturas obtenidas: {len(archivos_descargados)}")
