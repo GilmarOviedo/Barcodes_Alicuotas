@@ -1,12 +1,21 @@
 """Configuración de opciones de Chrome para ejecución headless."""
 from selenium.webdriver.chrome.options import Options
+import os
 
 def obtener_opciones_chrome():
     chrome_options = Options()
-    
-    # CRÍTICO: Ruta del binario en Streamlit Cloud
-    chrome_options.binary_location = "/usr/bin/chromium"
-    
+
+    # Buscar binario correcto en Streamlit Cloud
+    posibles_rutas = [
+        "/usr/bin/chromium-browser",
+        "/usr/bin/chromium",
+        "/snap/bin/chromium"
+    ]
+    for ruta in posibles_rutas:
+        if os.path.exists(ruta):
+            chrome_options.binary_location = ruta
+            break
+
     chrome_options.add_argument("--headless=new")
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
@@ -26,8 +35,8 @@ def obtener_opciones_chrome():
     chrome_options.add_argument("--disable-web-security")
     chrome_options.add_argument("--disable-features=VizDisplayCompositor")
     chrome_options.add_argument("--log-level=3")
-    
+
     chrome_options.add_experimental_option("excludeSwitches", ["enable-logging"])
     chrome_options.add_experimental_option('useAutomationExtension', False)
-    
+
     return chrome_options
