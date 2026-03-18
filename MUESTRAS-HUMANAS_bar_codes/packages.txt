@@ -1,0 +1,5 @@
+
+chromium
+wget
+unzip
+xvfb
