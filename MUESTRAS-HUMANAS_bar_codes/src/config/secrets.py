@@ -1,5 +1,4 @@
 """Gestión de credenciales y URLs."""
-
 import streamlit as st
 
 
@@ -37,8 +36,8 @@ class ConfiguracionURL:
     
     @staticmethod
     def url_laboratorio(record_id):
-        """URL de página de laboratorio."""
+        """URL del formulario de Extraccion con códigos de barras."""
         return (
             f"{ConfiguracionURL.BASE_URL}/DataEntry/index.php?"
-            f"pid=19&id={record_id}&event_id=59&page=laboratorio"
+            f"pid=19&id={record_id}&event_id=59&page=extraccion"
         )
