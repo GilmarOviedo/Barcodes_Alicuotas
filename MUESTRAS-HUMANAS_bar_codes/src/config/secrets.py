@@ -33,7 +33,7 @@ class ConfiguracionURL:
     @staticmethod
     def url_login():
         """URL de login."""
-        return f"{ConfiguracionURL.BASE_URL}/DataEntry/record_status_dashboard.php?pid=19"
+        return f"{ConfiguracionURL.BASE_URL}/index.php?action=login"
     
     @staticmethod
     def url_laboratorio(record_id):
