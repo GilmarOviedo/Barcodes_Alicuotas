@@ -40,6 +40,7 @@ def realizar_login_redcap(driver, wait, usuario, password, url_login):
         campo_password.send_keys(Keys.ENTER)
         
         wait.until(EC.invisibility_of_element_located((By.ID, "username")))
+        st.write("URL después de login:", driver.current_url)
         
         st.success("Sesión iniciada correctamente")
         return True
