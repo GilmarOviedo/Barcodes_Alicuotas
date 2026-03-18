@@ -2,7 +2,6 @@
 
 import os
 import time
-import subprocess
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
@@ -96,15 +95,29 @@ def descargar_codigos_barras_alicuotas(record_ids, usuario, password):
         carpeta = crear_directorio_temporal("codigos_barras_alicuotas")
 
         try:
-            # Usar chromedriver del sistema directamente
-            chromedriver_path = subprocess.check_output(
-                ["which", "chromedriver"], text=True
-            ).strip()
-            st.info(f"🔍 Chromedriver en: {chromedriver_path}")
+            # Buscar chromedriver en rutas conocidas de Streamlit Cloud
+            posibles_paths = [
+                "/usr/bin/chromedriver",
+                "/usr/lib/chromium-browser/chromedriver",
+                "/usr/lib/chromium/chromedriver",
+                "/snap/bin/chromium.chromedriver"
+            ]
+
+            chromedriver_path = None
+            for path in posibles_paths:
+                if os.path.exists(path):
+                    chromedriver_path = path
+                    st.info(f"🔍 Chromedriver encontrado en: {path}")
+                    break
+
+            if not chromedriver_path:
+                st.error("❌ Chromedriver NO encontrado en ninguna ruta conocida")
+                return []
 
             service = Service(chromedriver_path)
             driver = webdriver.Chrome(service=service, options=opciones_chrome)
             st.success("✅ Chrome iniciado correctamente")
+
         except Exception as e:
             st.error(f"❌ Chrome NO pudo iniciar: {str(e)}")
             return []
