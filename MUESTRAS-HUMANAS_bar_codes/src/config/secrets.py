@@ -36,8 +36,10 @@ class ConfiguracionURL:
     
     @staticmethod
     def url_laboratorio(record_id):
-        """URL del formulario de Extraccion con códigos de barras."""
+        """URL del formulario de laboratorio con códigos de barras."""
         return (
             f"{ConfiguracionURL.BASE_URL}/DataEntry/index.php?"
-            f"pid=19&id={record_id}&event_id=59&page=extraccion"
+            f"pid=19&id={record_id}&page=laboratorio&event_id=59&instance=1"
+            # ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+            # CAMBIO: agregado &instance=1 al final — era lo que faltaba
         )
