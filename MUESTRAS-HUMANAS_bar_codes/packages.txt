@@ -1,5 +1,5 @@
-
 chromium
+chromium-driver
 wget
 unzip
 xvfb
