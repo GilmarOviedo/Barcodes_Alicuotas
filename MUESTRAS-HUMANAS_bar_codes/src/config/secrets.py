@@ -40,6 +40,4 @@ class ConfiguracionURL:
         return (
             f"{ConfiguracionURL.BASE_URL}/DataEntry/index.php?"
             f"pid=19&id={record_id}&page=laboratorio&event_id=59&instance=1"
-            # ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-            # CAMBIO: agregado &instance=1 al final — era lo que faltaba
         )
