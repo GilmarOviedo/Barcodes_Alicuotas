@@ -39,7 +39,7 @@ def realizar_login_redcap(driver, wait, usuario, password, url_login):
         campo_password.send_keys(password)
         campo_password.send_keys(Keys.ENTER)
         
-        wait.until(EC.url_contains("record_status_dashboard.php"))
+        wait.until(EC.invisibility_of_element_located((By.ID, "username")))
         
         st.success("Sesión iniciada correctamente")
         return True
