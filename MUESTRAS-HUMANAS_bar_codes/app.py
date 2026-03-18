@@ -1,16 +1,20 @@
+```python
 """
 Sistema de Extracción de Códigos de Barras - Alícuotas RedCap
 """
 
-import os
-import warnings
-import streamlit as st
-
+# 🔥 FIX IMPORTANTE PARA STREAMLIT CLOUD
 import sys
-
+import os
 
 BASE_DIR = os.path.dirname(__file__)
 sys.path.append(BASE_DIR)
+
+# -------------------------------------
+
+import warnings
+import streamlit as st
+
 warnings.filterwarnings('ignore')
 
 from src.config import ConfiguracionCredenciales
@@ -112,7 +116,6 @@ def mostrar_resultados(archivos, record_ids):
         unsafe_allow_html=True
     )
     
-    # Vista previa de capturas
     if archivos:
         with st.expander("🔍 Ver capturas obtenidas", expanded=False):
             cols = st.columns(4)
@@ -124,14 +127,10 @@ def mostrar_resultados(archivos, record_ids):
 
 
 def procesar_extraccion(record_ids, email_dest, config):
-    """Procesamiento con spinner inline - SIN MODAL"""
-    
     try:
-        # Spinner inline - NO modal
         with st.spinner(f"🔄 Procesando {len(record_ids)} Record IDs • {len(record_ids) * 4} capturas esperadas..."):
             usuario, password = config.obtener_credenciales_redcap()
             
-            # Ejecutar extracción
             archivos = descargar_codigos_barras_alicuotas(
                 record_ids,
                 usuario,
@@ -141,7 +140,6 @@ def procesar_extraccion(record_ids, email_dest, config):
         if archivos:
             mostrar_resultados(archivos, record_ids)
             
-            # Enviar email
             with st.spinner("📧 Enviando email..."):
                 remitente, password_email = config.obtener_credenciales_email()
                 
@@ -173,7 +171,6 @@ def main():
         st.error("✗ Error: Verifica las credenciales en Secrets")
         st.stop()
     
-    # Paso 1: Método de entrada
     st.markdown("<div class='section-header'>Paso 1: Método de Entrada</div>", unsafe_allow_html=True)
     
     metodo = st.radio(
@@ -190,7 +187,6 @@ def main():
     else:
         record_ids = seccion_carga_csv() or []
     
-    # Paso 2: Email y procesamiento
     if record_ids:
         st.markdown("<br>", unsafe_allow_html=True)
         
@@ -223,3 +219,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+```
