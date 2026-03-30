@@ -2,6 +2,7 @@
 
 import os
 import time
+from PIL import Image
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
@@ -39,6 +40,35 @@ def cancelar_todas_las_alertas(driver, max_intentos=6):
     if alertas_canceladas > 0:
         st.warning(f"⚠️ {alertas_canceladas} alerta(s) REDCap canceladas")
     return alertas_canceladas
+
+
+def capturar_elemento_con_padding(driver, elemento, ruta_imagen, padding_bottom=50):
+    """
+    Captura un elemento con padding extra abajo para incluir
+    el número debajo del código de barras.
+    """
+    location = elemento.location
+    size = elemento.size
+
+    # Screenshot de página completa
+    ruta_temp = ruta_imagen + "_full.png"
+    driver.save_screenshot(ruta_temp)
+
+    # Device pixel ratio para pantallas retina
+    dpr = driver.execute_script("return window.devicePixelRatio") or 1
+
+    x = int(location['x'] * dpr)
+    y = int(location['y'] * dpr)
+    w = int(size['width'] * dpr)
+    h = int((size['height'] + padding_bottom) * dpr)  # padding extra para número debajo
+
+    img_full = Image.open(ruta_temp)
+    img_recortada = img_full.crop((x, y, x + w, y + h))
+    img_recortada.save(ruta_imagen)
+
+    # Eliminar screenshot temporal
+    if os.path.exists(ruta_temp):
+        os.remove(ruta_temp)
 
 
 def capturar_alicuota_con_dropdown(driver, wait, numero_alicuota, carpeta, record_id):
@@ -95,7 +125,7 @@ def capturar_alicuota_con_dropdown(driver, wait, numero_alicuota, carpeta, recor
         if numero_alicuota == 3:
             selector_barcode = "tr#moderna_id_t-tr td.labelrc"
         # else:
-        #     selector_barcode = f"tr#alic{numero_alicuota}_barcode-tr td.labelrc"  # Alícuotas 4, 5, 6 desactivadas
+        #     selector_barcode = f"tr#alic{numero_alicuota}_barcode-tr td.labelrc"  # Desactivadas
 
         st.info(f"🔍 Buscando código de barras: {selector_barcode}")
 
@@ -113,20 +143,22 @@ def capturar_alicuota_con_dropdown(driver, wait, numero_alicuota, carpeta, recor
         )
         time.sleep(1.0)
 
-        # Cancelar alertas antes de capturar screenshot
+        # Cancelar alertas antes de capturar
         cancelar_todas_las_alertas(driver)
 
         # Nomenclatura: {record_id}_alicuota_3.png
         nombre_archivo = f"{record_id}_alicuota_{numero_alicuota}.png"
         ruta_imagen = os.path.join(carpeta, nombre_archivo)
-        elemento_barcode.screenshot(ruta_imagen)
+
+        # Capturar con padding extra para incluir número debajo del barcode
+        capturar_elemento_con_padding(driver, elemento_barcode, ruta_imagen, padding_bottom=50)
         st.success(f"📸 Screenshot guardado: {nombre_archivo}")
 
         # Recorte alícuota 3 — lógica original sin modificar
         if numero_alicuota == 3:
             recortar_imagen_alicuota_3(ruta_imagen)
         # else:
-        #     recortar_imagen_alicuota(ruta_imagen)  # Desactivado — alícuotas 4, 5, 6
+        #     recortar_imagen_alicuota(ruta_imagen)  # Desactivado
 
         return ruta_imagen
 
@@ -148,7 +180,7 @@ def capturar_alicuota_con_dropdown(driver, wait, numero_alicuota, carpeta, recor
             time.sleep(1.0)
             nombre_archivo = f"{record_id}_alicuota_{numero_alicuota}.png"
             ruta_imagen = os.path.join(carpeta, nombre_archivo)
-            elemento_barcode.screenshot(ruta_imagen)
+            capturar_elemento_con_padding(driver, elemento_barcode, ruta_imagen, padding_bottom=50)
             st.success(f"📸 Screenshot guardado en reintento: {nombre_archivo}")
             if numero_alicuota == 3:
                 recortar_imagen_alicuota_3(ruta_imagen)
@@ -158,7 +190,7 @@ def capturar_alicuota_con_dropdown(driver, wait, numero_alicuota, carpeta, recor
             return None
 
     except TimeoutException:
-        st.warning(f"⚠️ TIMEOUT — Alícuota {numero_alicuota} Record {record_id}: no visible — puede que no exista para este registro")
+        st.warning(f"⚠️ TIMEOUT — Alícuota {numero_alicuota} Record {record_id}: no visible — puede que no exista")
         return None
     except NoSuchElementException:
         st.warning(f"⚠️ NO EXISTE — Alícuota {numero_alicuota} Record {record_id}: elemento no existe")
