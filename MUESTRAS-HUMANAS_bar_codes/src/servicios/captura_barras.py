@@ -35,7 +35,7 @@ def cancelar_todas_las_alertas(driver, max_intentos=6):
             alertas_canceladas += 1
             time.sleep(0.5)
         except Exception:
-            break  # No hay más alertas
+            break
     if alertas_canceladas > 0:
         st.warning(f"⚠️ {alertas_canceladas} alerta(s) REDCap canceladas")
     return alertas_canceladas
@@ -47,9 +47,9 @@ def capturar_alicuota_con_dropdown(driver, wait, numero_alicuota, carpeta, recor
     ACTUALMENTE SOLO SE USA ALÍCUOTA 3.
 
     Alícuotas desactivadas temporalmente:
-    - Alícuota 4 → selector: tr#alic4_barcode-tr
-    - Alícuota 5 → selector: tr#alic5_barcode-tr
-    - Alícuota 6 → selector: tr#alic6_barcode-tr
+    - Alícuota 4 → selector: tr#alic4_barcode-tr td.labelrc
+    - Alícuota 5 → selector: tr#alic5_barcode-tr td.labelrc
+    - Alícuota 6 → selector: tr#alic6_barcode-tr td.labelrc
     """
     try:
         # Cancelar alertas pendientes antes de empezar
@@ -85,25 +85,24 @@ def capturar_alicuota_con_dropdown(driver, wait, numero_alicuota, carpeta, recor
         st.info(f"✅ MODERNA seleccionada en alícuota {numero_alicuota}")
         time.sleep(1.0)
 
-        # Cancelar TODAS las alertas en bucle — REDCap puede lanzar varias seguidas
+        # Cancelar TODAS las alertas en bucle
         cancelar_todas_las_alertas(driver)
         time.sleep(0.8)
         cancelar_todas_las_alertas(driver)
         time.sleep(0.5)
 
-        # Selector del código de barras — solo alícuota 3 activa
+        # Selector del td completo — incluye barcode + número debajo
         if numero_alicuota == 3:
-            id_barcode_tr = "moderna_id_t-tr"
+            selector_barcode = "tr#moderna_id_t-tr td.labelrc"
         # else:
-        #     id_barcode_tr = f"alic{numero_alicuota}_barcode-tr"  # Alícuotas 4, 5, 6 desactivadas
+        #     selector_barcode = f"tr#alic{numero_alicuota}_barcode-tr td.labelrc"  # Alícuotas 4, 5, 6 desactivadas
 
-        selector_barcode = f"tr#{id_barcode_tr}"
         st.info(f"🔍 Buscando código de barras: {selector_barcode}")
 
         # Cancelar alertas antes de buscar el barcode
         cancelar_todas_las_alertas(driver)
 
-        # Esperar visibilidad natural — sin forzar JS para no distorsionar recorte
+        # Esperar visibilidad natural del td completo
         elemento_barcode = wait.until(
             EC.visibility_of_element_located((By.CSS_SELECTOR, selector_barcode))
         )
@@ -138,7 +137,7 @@ def capturar_alicuota_con_dropdown(driver, wait, numero_alicuota, carpeta, recor
             time.sleep(1.0)
             cancelar_todas_las_alertas(driver)
             if numero_alicuota == 3:
-                selector_barcode = "tr#moderna_id_t-tr"
+                selector_barcode = "tr#moderna_id_t-tr td.labelrc"
             elemento_barcode = wait.until(
                 EC.visibility_of_element_located((By.CSS_SELECTOR, selector_barcode))
             )
