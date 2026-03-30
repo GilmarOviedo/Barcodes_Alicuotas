@@ -15,11 +15,11 @@ from selenium.webdriver.common.alert import Alert
 import streamlit as st
 
 from src.config import obtener_opciones_chrome, ConfiguracionURL
-from src.utilidades import (
-    recortar_imagen_alicuota_3,
-    # recortar_imagen_alicuota,  # Desactivado — solo se usa alícuota 3
-    crear_directorio_temporal
-)
+from src.utilidades import crear_directorio_temporal
+
+# NOTA: recortar_imagen_alicuota_3 ya NO se usa porque capturamos
+# directamente el td.labelrc que contiene exactamente el recuadro del barcode.
+# El TD ya tiene el tamaño correcto — no necesita recorte adicional.
 
 
 def cancelar_todas_las_alertas(driver, max_intentos=6):
@@ -48,16 +48,16 @@ def capturar_alicuota_con_dropdown(driver, wait, numero_alicuota, carpeta, recor
     ACTUALMENTE SOLO SE USA ALÍCUOTA 3.
 
     Alícuotas desactivadas temporalmente:
-    - Alícuota 4 → selector: tr#alic4_barcode-tr
-    - Alícuota 5 → selector: tr#alic5_barcode-tr
-    - Alícuota 6 → selector: tr#alic6_barcode-tr
+    - Alícuota 4 → selector: tr#alic4_barcode-tr td.labelrc
+    - Alícuota 5 → selector: tr#alic5_barcode-tr td.labelrc
+    - Alícuota 6 → selector: tr#alic6_barcode-tr td.labelrc
 
     MÉTODO DE CAPTURA:
-    - Se usa .screenshot() directo sobre el TR (igual al proyecto anterior que funciona).
-    - NO se usa save_screenshot + crop con DPR (ese método fallaba).
+    - Selector: tr#moderna_id_t-tr td.labelrc  ← el TD que contiene label + barcode
+    - Captura: .screenshot() directo sobre el TD (sin save_screenshot + DPR)
+    - Recorte: NINGUNO — el TD ya tiene exactamente el tamaño del recuadro verde
     """
     try:
-        # Cancelar alertas pendientes antes de empezar
         cancelar_todas_las_alertas(driver)
 
         nombre_dropdown = f"alic{numero_alicuota}_dest_2"
@@ -67,19 +67,16 @@ def capturar_alicuota_con_dropdown(driver, wait, numero_alicuota, carpeta, recor
             EC.presence_of_element_located((By.NAME, nombre_dropdown))
         )
 
-        # Forzar visibilidad del dropdown con JavaScript
         driver.execute_script(
             "arguments[0].style.display='block'; arguments[0].style.visibility='visible';",
             elemento_dropdown
         )
-
         driver.execute_script(
             "arguments[0].scrollIntoView({block: 'center'});",
             elemento_dropdown
         )
         time.sleep(0.5)
 
-        # Cancelar alertas después del scroll
         cancelar_todas_las_alertas(driver)
 
         # Seleccionar MODERNA con JavaScript
@@ -90,50 +87,43 @@ def capturar_alicuota_con_dropdown(driver, wait, numero_alicuota, carpeta, recor
         st.info(f"✅ MODERNA seleccionada en alícuota {numero_alicuota}")
         time.sleep(1.0)
 
-        # Cancelar TODAS las alertas en bucle
         cancelar_todas_las_alertas(driver)
         time.sleep(0.8)
         cancelar_todas_las_alertas(driver)
         time.sleep(0.5)
 
-        # ✅ CORREGIDO: selector apunta al TR completo (igual al proyecto anterior)
+        # ✅ CORRECTO: capturar el TD interno que tiene label + barcode completo
+        # El TR completo incluye columnas vacías → el recorte 1/3 cortaba el barcode
+        # El TD labelrc contiene exactamente el recuadro verde visible en pantalla
         if numero_alicuota == 3:
-            selector_barcode = "tr#moderna_id_t-tr"
+            selector_barcode = "tr#moderna_id_t-tr td.labelrc"
         # else:
-        #     selector_barcode = f"tr#alic{numero_alicuota}_barcode-tr"  # Desactivadas
+        #     selector_barcode = f"tr#alic{numero_alicuota}_barcode-tr td.labelrc"  # Desactivadas
 
         st.info(f"🔍 Buscando código de barras: {selector_barcode}")
 
-        # Cancelar alertas antes de buscar el barcode
         cancelar_todas_las_alertas(driver)
 
-        # ✅ CORREGIDO: esperar visibilidad del TR completo
-        tr_el = wait.until(
+        # ✅ Esperar visibilidad del TD
+        td_el = wait.until(
             EC.visibility_of_element_located((By.CSS_SELECTOR, selector_barcode))
         )
 
         driver.execute_script(
             "arguments[0].scrollIntoView({block: 'center'});",
-            tr_el
+            td_el
         )
-        time.sleep(1.4)  # Mismo tiempo que el proyecto anterior que funciona
+        time.sleep(1.4)
 
-        # Cancelar alertas antes de capturar
         cancelar_todas_las_alertas(driver)
 
-        # Nomenclatura: {record_id}_alicuota_3.png
         nombre_archivo = f"{record_id}_alicuota_{numero_alicuota}.png"
         ruta_imagen = os.path.join(carpeta, nombre_archivo)
 
-        # ✅ CORREGIDO: .screenshot() directo sobre el TR — igual al proyecto anterior
-        tr_el.screenshot(ruta_imagen)
+        # ✅ .screenshot() directo sobre el TD — captura exactamente el recuadro verde
+        # Sin save_screenshot, sin crop con DPR, sin recortar_imagen_alicuota_3
+        td_el.screenshot(ruta_imagen)
         st.success(f"📸 Screenshot guardado: {nombre_archivo}")
-
-        # Recorte alícuota 3 — desde src.utilidades (sin modificar)
-        if numero_alicuota == 3:
-            recortar_imagen_alicuota_3(ruta_imagen)
-        # else:
-        #     recortar_imagen_alicuota(ruta_imagen)  # Desactivado
 
         return ruta_imagen
 
@@ -144,20 +134,18 @@ def capturar_alicuota_con_dropdown(driver, wait, numero_alicuota, carpeta, recor
             time.sleep(1.0)
             cancelar_todas_las_alertas(driver)
             if numero_alicuota == 3:
-                selector_barcode = "tr#moderna_id_t-tr"
-            tr_el = wait.until(
+                selector_barcode = "tr#moderna_id_t-tr td.labelrc"
+            td_el = wait.until(
                 EC.visibility_of_element_located((By.CSS_SELECTOR, selector_barcode))
             )
             driver.execute_script(
-                "arguments[0].scrollIntoView({block: 'center'});", tr_el
+                "arguments[0].scrollIntoView({block: 'center'});", td_el
             )
             time.sleep(1.4)
             nombre_archivo = f"{record_id}_alicuota_{numero_alicuota}.png"
             ruta_imagen = os.path.join(carpeta, nombre_archivo)
-            tr_el.screenshot(ruta_imagen)
+            td_el.screenshot(ruta_imagen)
             st.success(f"📸 Screenshot guardado en reintento: {nombre_archivo}")
-            if numero_alicuota == 3:
-                recortar_imagen_alicuota_3(ruta_imagen)
             return ruta_imagen
         except Exception as e2:
             st.error(f"❌ Reintento fallido — alícuota {numero_alicuota} Record {record_id}: {str(e2)[:100]}")
@@ -225,7 +213,6 @@ def descargar_codigos_barras_alicuotas(record_ids, usuario, password):
 
         for id_val in record_ids:
             try:
-                # Cancelar alertas pendientes ANTES de navegar
                 cancelar_todas_las_alertas(driver)
 
                 url_laboratorio = ConfiguracionURL.url_laboratorio(id_val)
@@ -237,7 +224,6 @@ def descargar_codigos_barras_alicuotas(record_ids, usuario, password):
                     cancelar_todas_las_alertas(driver)
                     driver.get(url_laboratorio)
 
-                # Cancelar alertas al cargar la nueva página
                 cancelar_todas_las_alertas(driver)
 
                 try:
