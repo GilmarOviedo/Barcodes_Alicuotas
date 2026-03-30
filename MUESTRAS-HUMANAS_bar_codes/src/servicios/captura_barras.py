@@ -5,7 +5,7 @@ import time
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait, Select
+from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import (
     TimeoutException, NoSuchElementException, UnexpectedAlertPresentException
@@ -16,29 +16,44 @@ import streamlit as st
 from src.config import obtener_opciones_chrome, ConfiguracionURL
 from src.utilidades import (
     recortar_imagen_alicuota_3,
-    recortar_imagen_alicuota,
+    # recortar_imagen_alicuota,  # Desactivado — solo se usa alícuota 3
     crear_directorio_temporal
 )
 
 
-def manejar_alerta_si_existe(driver):
-    """Cancela cualquier alerta/popup de REDCap si está presente."""
-    try:
-        WebDriverWait(driver, 2).until(EC.alert_is_present())
-        alert = Alert(driver)
-        texto = alert.text
-        st.warning(f"⚠️ Alerta REDCap — cancelando: {texto[:80]}...")
-        alert.dismiss()  # CANCELAR — no borra valores, barcode aparece igual
-        time.sleep(0.8)
-        return True
-    except Exception:
-        return False
+def cancelar_todas_las_alertas(driver, max_intentos=6):
+    """
+    Cancela TODAS las alertas pendientes en bucle.
+    REDCap puede lanzar múltiples alertas seguidas.
+    """
+    alertas_canceladas = 0
+    for _ in range(max_intentos):
+        try:
+            WebDriverWait(driver, 1.5).until(EC.alert_is_present())
+            alert = Alert(driver)
+            alert.dismiss()  # CANCELAR siempre — no borra valores
+            alertas_canceladas += 1
+            time.sleep(0.5)
+        except Exception:
+            break  # No hay más alertas
+    if alertas_canceladas > 0:
+        st.warning(f"⚠️ {alertas_canceladas} alerta(s) REDCap canceladas")
+    return alertas_canceladas
 
 
 def capturar_alicuota_con_dropdown(driver, wait, numero_alicuota, carpeta, record_id):
+    """
+    Captura código de barras de la alícuota indicada.
+    ACTUALMENTE SOLO SE USA ALÍCUOTA 3.
+
+    Alícuotas desactivadas temporalmente:
+    - Alícuota 4 → selector: tr#alic4_barcode-tr
+    - Alícuota 5 → selector: tr#alic5_barcode-tr
+    - Alícuota 6 → selector: tr#alic6_barcode-tr
+    """
     try:
-        # Manejar alerta antes de empezar
-        manejar_alerta_si_existe(driver)
+        # Cancelar alertas pendientes antes de empezar
+        cancelar_todas_las_alertas(driver)
 
         nombre_dropdown = f"alic{numero_alicuota}_dest_2"
         st.info(f"🔍 Buscando dropdown: {nombre_dropdown}")
@@ -53,76 +68,105 @@ def capturar_alicuota_con_dropdown(driver, wait, numero_alicuota, carpeta, recor
             elemento_dropdown
         )
 
-        # Scroll al dropdown
         driver.execute_script(
             "arguments[0].scrollIntoView({block: 'center'});",
             elemento_dropdown
         )
         time.sleep(0.5)
 
-        # Manejar alerta después del scroll
-        manejar_alerta_si_existe(driver)
+        # Cancelar alertas después del scroll
+        cancelar_todas_las_alertas(driver)
 
-        # Seleccionar MODERNA usando JavaScript
+        # Seleccionar MODERNA con JavaScript
         driver.execute_script(
             "arguments[0].value = '4'; arguments[0].dispatchEvent(new Event('change'));",
             elemento_dropdown
         )
         st.info(f"✅ MODERNA seleccionada en alícuota {numero_alicuota}")
-        time.sleep(1.5)
+        time.sleep(1.0)
 
-        # Manejar alerta después de seleccionar — CANCELAR para no borrar valores
-        manejar_alerta_si_existe(driver)
+        # Cancelar TODAS las alertas en bucle — REDCap puede lanzar varias seguidas
+        cancelar_todas_las_alertas(driver)
+        time.sleep(0.8)
+        cancelar_todas_las_alertas(driver)
+        time.sleep(0.5)
 
+        # Selector del código de barras — solo alícuota 3 activa
         if numero_alicuota == 3:
             id_barcode_tr = "moderna_id_t-tr"
-        else:
-            id_barcode_tr = f"alic{numero_alicuota}_barcode-tr"
+        # else:
+        #     id_barcode_tr = f"alic{numero_alicuota}_barcode-tr"  # Alícuotas 4, 5, 6 desactivadas
 
         selector_barcode = f"tr#{id_barcode_tr}"
         st.info(f"🔍 Buscando código de barras: {selector_barcode}")
 
-        # Esperar visibilidad natural — sin forzar con JS para no distorsionar recorte
+        # Cancelar alertas antes de buscar el barcode
+        cancelar_todas_las_alertas(driver)
+
+        # Esperar visibilidad natural — sin forzar JS para no distorsionar recorte
         elemento_barcode = wait.until(
             EC.visibility_of_element_located((By.CSS_SELECTOR, selector_barcode))
         )
 
-        # Scroll al código de barras
         driver.execute_script(
             "arguments[0].scrollIntoView({block: 'center'});",
             elemento_barcode
         )
         time.sleep(1.0)
 
-        # Manejar alerta antes de capturar
-        manejar_alerta_si_existe(driver)
+        # Cancelar alertas antes de capturar screenshot
+        cancelar_todas_las_alertas(driver)
 
+        # Nomenclatura: {record_id}_alicuota_3.png
         nombre_archivo = f"{record_id}_alicuota_{numero_alicuota}.png"
         ruta_imagen = os.path.join(carpeta, nombre_archivo)
         elemento_barcode.screenshot(ruta_imagen)
         st.success(f"📸 Screenshot guardado: {nombre_archivo}")
 
-        # Recorte original sin modificar
+        # Recorte alícuota 3 — lógica original sin modificar
         if numero_alicuota == 3:
             recortar_imagen_alicuota_3(ruta_imagen)
-        else:
-            recortar_imagen_alicuota(ruta_imagen)
+        # else:
+        #     recortar_imagen_alicuota(ruta_imagen)  # Desactivado — alícuotas 4, 5, 6
 
         return ruta_imagen
 
     except UnexpectedAlertPresentException:
-        manejar_alerta_si_existe(driver)
-        st.warning(f"⚠️ Alerta inesperada en alícuota {numero_alicuota} Record {record_id} — continuando")
-        return None
+        cancelar_todas_las_alertas(driver)
+        st.warning(f"⚠️ Alerta inesperada en alícuota {numero_alicuota} Record {record_id} — reintentando")
+        try:
+            time.sleep(1.0)
+            cancelar_todas_las_alertas(driver)
+            if numero_alicuota == 3:
+                selector_barcode = "tr#moderna_id_t-tr"
+            elemento_barcode = wait.until(
+                EC.visibility_of_element_located((By.CSS_SELECTOR, selector_barcode))
+            )
+            driver.execute_script(
+                "arguments[0].scrollIntoView({block: 'center'});",
+                elemento_barcode
+            )
+            time.sleep(1.0)
+            nombre_archivo = f"{record_id}_alicuota_{numero_alicuota}.png"
+            ruta_imagen = os.path.join(carpeta, nombre_archivo)
+            elemento_barcode.screenshot(ruta_imagen)
+            st.success(f"📸 Screenshot guardado en reintento: {nombre_archivo}")
+            if numero_alicuota == 3:
+                recortar_imagen_alicuota_3(ruta_imagen)
+            return ruta_imagen
+        except Exception as e2:
+            st.error(f"❌ Reintento fallido — alícuota {numero_alicuota} Record {record_id}: {str(e2)[:100]}")
+            return None
+
     except TimeoutException:
         st.warning(f"⚠️ TIMEOUT — Alícuota {numero_alicuota} Record {record_id}: no visible — puede que no exista para este registro")
         return None
     except NoSuchElementException:
-        st.warning(f"⚠️ NO EXISTE — Alícuota {numero_alicuota} Record {record_id}: elemento no existe — puede que no aplique")
+        st.warning(f"⚠️ NO EXISTE — Alícuota {numero_alicuota} Record {record_id}: elemento no existe")
         return None
     except Exception as e:
         st.error(f"❌ ERROR — Alícuota {numero_alicuota} Record {record_id}: {str(e)[:150]}")
-        manejar_alerta_si_existe(driver)
+        cancelar_todas_las_alertas(driver)
         return None
 
 
@@ -152,7 +196,7 @@ def descargar_codigos_barras_alicuotas(record_ids, usuario, password):
                     break
 
             if not chromedriver_path:
-                st.error("❌ Chromedriver NO encontrado en ninguna ruta conocida")
+                st.error("❌ Chromedriver NO encontrado")
                 return []
 
             service = Service(chromedriver_path)
@@ -169,19 +213,27 @@ def descargar_codigos_barras_alicuotas(record_ids, usuario, password):
         st.info(f"🔐 Login en: {url_login}")
 
         if not realizar_login_redcap(driver, wait, usuario, password, url_login):
-            st.error("❌ Login fallido — verifica usuario/password en Secrets")
+            st.error("❌ Login fallido")
             return []
 
         archivos_descargados = []
 
         for id_val in record_ids:
             try:
+                # Cancelar alertas pendientes ANTES de navegar
+                cancelar_todas_las_alertas(driver)
+
                 url_laboratorio = ConfiguracionURL.url_laboratorio(id_val)
                 st.info(f"🌐 Navegando a: {url_laboratorio}")
-                driver.get(url_laboratorio)
 
-                # Manejar alerta al cargar la página
-                manejar_alerta_si_existe(driver)
+                try:
+                    driver.get(url_laboratorio)
+                except UnexpectedAlertPresentException:
+                    cancelar_todas_las_alertas(driver)
+                    driver.get(url_laboratorio)
+
+                # Cancelar alertas al cargar la nueva página
+                cancelar_todas_las_alertas(driver)
 
                 try:
                     WebDriverWait(driver, 10).until(
@@ -193,18 +245,21 @@ def descargar_codigos_barras_alicuotas(record_ids, usuario, password):
                     continue
 
                 time.sleep(1.5)
-                manejar_alerta_si_existe(driver)
+                cancelar_todas_las_alertas(driver)
 
-                for num_alicuota in [3, 4, 5, 6]:
+                # SOLO ALÍCUOTA 3 ACTIVA
+                # Alícuotas desactivadas: 4, 5, 6
+                for num_alicuota in [3]:
                     archivo_capturado = capturar_alicuota_con_dropdown(
                         driver, wait, num_alicuota, carpeta, id_val
                     )
                     if archivo_capturado:
                         archivos_descargados.append(archivo_capturado)
                     time.sleep(0.3)
+                    cancelar_todas_las_alertas(driver)
 
             except Exception as e:
-                manejar_alerta_si_existe(driver)
+                cancelar_todas_las_alertas(driver)
                 st.error(f"❌ Error en Record ID {id_val}: {str(e)[:150]}")
                 continue
 
