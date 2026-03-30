@@ -1,4 +1,3 @@
-
 """
 Sistema de Extracción de Códigos de Barras - Alícuotas RedCap
 """
@@ -36,7 +35,6 @@ def configurar_pagina():
         layout="centered",
         initial_sidebar_state="collapsed"
     )
-    
     st.markdown(obtener_estilos_css(), unsafe_allow_html=True)
 
 
@@ -63,7 +61,7 @@ def seccion_carga_csv():
     with st.expander("📄 Formato CSV"):
         df_ejemplo = generar_csv_ejemplo()
         st.dataframe(df_ejemplo, use_container_width=True, hide_index=True)
-        
+
         csv_ejemplo = df_ejemplo.to_csv(index=False).encode("utf-8")
         st.download_button(
             label="Descargar plantilla",
@@ -72,25 +70,25 @@ def seccion_carga_csv():
             mime="text/csv",
             use_container_width=True
         )
-    
+
     archivo = st.file_uploader(
         "Cargar CSV",
         type=["csv"],
         label_visibility="collapsed"
     )
-    
+
     if archivo:
         return procesar_archivo_csv(archivo)
-    
+
     return None
 
 
 def mostrar_resultados(archivos, record_ids):
-    """Resultados de extracción"""
-    esperadas = len(record_ids) * 4
+    """Resultados de extracción — solo alícuota 3"""
+    esperadas = len(record_ids) * 1  # Solo alícuota 3 por record ID
     obtenidas = len(archivos)
     porcentaje = (obtenidas / esperadas * 100) if esperadas > 0 else 0
-    
+
     st.markdown(
         f"""
         <div class='result-card'>
@@ -115,7 +113,7 @@ def mostrar_resultados(archivos, record_ids):
         """,
         unsafe_allow_html=True
     )
-    
+
     if archivos:
         with st.expander("🔍 Ver capturas obtenidas", expanded=False):
             cols = st.columns(4)
@@ -128,21 +126,22 @@ def mostrar_resultados(archivos, record_ids):
 
 def procesar_extraccion(record_ids, email_dest, config):
     try:
-        with st.spinner(f"🔄 Procesando {len(record_ids)} Record IDs • {len(record_ids) * 4} capturas esperadas..."):
+        # Solo alícuota 3 — 1 captura por record ID
+        with st.spinner(f"🔄 Procesando {len(record_ids)} Record IDs • {len(record_ids) * 1} capturas esperadas..."):
             usuario, password = config.obtener_credenciales_redcap()
-            
+
             archivos = descargar_codigos_barras_alicuotas(
                 record_ids,
                 usuario,
                 password
             )
-        
+
         if archivos:
             mostrar_resultados(archivos, record_ids)
-            
+
             with st.spinner("📧 Enviando email..."):
                 remitente, password_email = config.obtener_credenciales_email()
-                
+
                 if enviar_email_con_zip(
                     record_ids,
                     archivos,
@@ -156,7 +155,7 @@ def procesar_extraccion(record_ids, email_dest, config):
                     st.error("✗ Error al enviar email")
         else:
             st.error("✗ No se obtuvieron capturas. Verifica los Record IDs.")
-            
+
     except Exception as e:
         st.error(f"✗ Error en el proceso: {str(e)}")
 
@@ -164,52 +163,52 @@ def procesar_extraccion(record_ids, email_dest, config):
 def main():
     configurar_pagina()
     mostrar_encabezado()
-    
+
     try:
         config = ConfiguracionCredenciales()
     except Exception:
         st.error("✗ Error: Verifica las credenciales en Secrets")
         st.stop()
-    
+
     st.markdown("<div class='section-header'>Paso 1: Método de Entrada</div>", unsafe_allow_html=True)
-    
+
     metodo = st.radio(
         "Método",
         ["Entrada Manual", "Carga CSV"],
         horizontal=True,
         label_visibility="collapsed"
     )
-    
+
     record_ids = []
-    
+
     if metodo == "Entrada Manual":
         record_ids = seccion_entrada_manual()
     else:
         record_ids = seccion_carga_csv() or []
-    
+
     if record_ids:
         st.markdown("<br>", unsafe_allow_html=True)
-        
+
         st.markdown(
             f"""
             <div class='info-pill'>
                 <span class='pill-icon'>📊</span>
-                <span class='pill-text'>{len(record_ids)} Record IDs • {len(record_ids) * 4} capturas</span>
+                <span class='pill-text'>{len(record_ids)} Record IDs • {len(record_ids) * 1} capturas</span>
             </div>
             """,
             unsafe_allow_html=True
         )
-        
+
         st.markdown("<div class='section-header'>Paso 2: Email de Destino</div>", unsafe_allow_html=True)
-        
+
         email = st.text_input(
             "Email",
             placeholder="ejemplo@dominio.com",
             label_visibility="collapsed"
         )
-        
+
         st.markdown("<br>", unsafe_allow_html=True)
-        
+
         if st.button("🚀 Iniciar Extracción", type="primary", use_container_width=True):
             if not email.strip() or "@" not in email:
                 st.error("✗ Ingresa un email válido")
@@ -219,4 +218,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
