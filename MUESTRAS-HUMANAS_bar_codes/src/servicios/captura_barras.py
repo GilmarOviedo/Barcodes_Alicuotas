@@ -42,44 +42,19 @@ def cancelar_todas_las_alertas(driver, max_intentos=6):
     return alertas_canceladas
 
 
-def capturar_elemento_con_padding(driver, elemento, ruta_imagen, padding_bottom=50):
-    """
-    Captura un elemento con padding extra abajo para incluir
-    el número debajo del código de barras.
-    """
-    location = elemento.location
-    size = elemento.size
-
-    # Screenshot de página completa
-    ruta_temp = ruta_imagen + "_full.png"
-    driver.save_screenshot(ruta_temp)
-
-    # Device pixel ratio para pantallas retina
-    dpr = driver.execute_script("return window.devicePixelRatio") or 1
-
-    x = int(location['x'] * dpr)
-    y = int(location['y'] * dpr)
-    w = int(size['width'] * dpr)
-    h = int((size['height'] + padding_bottom) * dpr)  # padding extra para número debajo
-
-    img_full = Image.open(ruta_temp)
-    img_recortada = img_full.crop((x, y, x + w, y + h))
-    img_recortada.save(ruta_imagen)
-
-    # Eliminar screenshot temporal
-    if os.path.exists(ruta_temp):
-        os.remove(ruta_temp)
-
-
 def capturar_alicuota_con_dropdown(driver, wait, numero_alicuota, carpeta, record_id):
     """
     Captura código de barras de la alícuota indicada.
     ACTUALMENTE SOLO SE USA ALÍCUOTA 3.
 
     Alícuotas desactivadas temporalmente:
-    - Alícuota 4 → selector: tr#alic4_barcode-tr td.labelrc
-    - Alícuota 5 → selector: tr#alic5_barcode-tr td.labelrc
-    - Alícuota 6 → selector: tr#alic6_barcode-tr td.labelrc
+    - Alícuota 4 → selector: tr#alic4_barcode-tr
+    - Alícuota 5 → selector: tr#alic5_barcode-tr
+    - Alícuota 6 → selector: tr#alic6_barcode-tr
+
+    MÉTODO DE CAPTURA:
+    - Se usa .screenshot() directo sobre el TR (igual al proyecto anterior que funciona).
+    - NO se usa save_screenshot + crop con DPR (ese método fallaba).
     """
     try:
         # Cancelar alertas pendientes antes de empezar
@@ -121,27 +96,27 @@ def capturar_alicuota_con_dropdown(driver, wait, numero_alicuota, carpeta, recor
         cancelar_todas_las_alertas(driver)
         time.sleep(0.5)
 
-        # Selector del td completo — incluye barcode + número debajo
+        # ✅ CORREGIDO: selector apunta al TR completo (igual al proyecto anterior)
         if numero_alicuota == 3:
-            selector_barcode = "tr#moderna_id_t-tr td.labelrc"
+            selector_barcode = "tr#moderna_id_t-tr"
         # else:
-        #     selector_barcode = f"tr#alic{numero_alicuota}_barcode-tr td.labelrc"  # Desactivadas
+        #     selector_barcode = f"tr#alic{numero_alicuota}_barcode-tr"  # Desactivadas
 
         st.info(f"🔍 Buscando código de barras: {selector_barcode}")
 
         # Cancelar alertas antes de buscar el barcode
         cancelar_todas_las_alertas(driver)
 
-        # Esperar visibilidad natural del td completo
-        elemento_barcode = wait.until(
+        # ✅ CORREGIDO: esperar visibilidad del TR completo
+        tr_el = wait.until(
             EC.visibility_of_element_located((By.CSS_SELECTOR, selector_barcode))
         )
 
         driver.execute_script(
             "arguments[0].scrollIntoView({block: 'center'});",
-            elemento_barcode
+            tr_el
         )
-        time.sleep(1.0)
+        time.sleep(1.4)  # Mismo tiempo que el proyecto anterior que funciona
 
         # Cancelar alertas antes de capturar
         cancelar_todas_las_alertas(driver)
@@ -150,11 +125,11 @@ def capturar_alicuota_con_dropdown(driver, wait, numero_alicuota, carpeta, recor
         nombre_archivo = f"{record_id}_alicuota_{numero_alicuota}.png"
         ruta_imagen = os.path.join(carpeta, nombre_archivo)
 
-        # Capturar con padding extra para incluir número debajo del barcode
-        capturar_elemento_con_padding(driver, elemento_barcode, ruta_imagen, padding_bottom=50)
+        # ✅ CORREGIDO: .screenshot() directo sobre el TR — igual al proyecto anterior
+        tr_el.screenshot(ruta_imagen)
         st.success(f"📸 Screenshot guardado: {nombre_archivo}")
 
-        # Recorte alícuota 3 — lógica original sin modificar
+        # Recorte alícuota 3 — desde src.utilidades (sin modificar)
         if numero_alicuota == 3:
             recortar_imagen_alicuota_3(ruta_imagen)
         # else:
@@ -169,18 +144,17 @@ def capturar_alicuota_con_dropdown(driver, wait, numero_alicuota, carpeta, recor
             time.sleep(1.0)
             cancelar_todas_las_alertas(driver)
             if numero_alicuota == 3:
-                selector_barcode = "tr#moderna_id_t-tr td.labelrc"
-            elemento_barcode = wait.until(
+                selector_barcode = "tr#moderna_id_t-tr"
+            tr_el = wait.until(
                 EC.visibility_of_element_located((By.CSS_SELECTOR, selector_barcode))
             )
             driver.execute_script(
-                "arguments[0].scrollIntoView({block: 'center'});",
-                elemento_barcode
+                "arguments[0].scrollIntoView({block: 'center'});", tr_el
             )
-            time.sleep(1.0)
+            time.sleep(1.4)
             nombre_archivo = f"{record_id}_alicuota_{numero_alicuota}.png"
             ruta_imagen = os.path.join(carpeta, nombre_archivo)
-            capturar_elemento_con_padding(driver, elemento_barcode, ruta_imagen, padding_bottom=50)
+            tr_el.screenshot(ruta_imagen)
             st.success(f"📸 Screenshot guardado en reintento: {nombre_archivo}")
             if numero_alicuota == 3:
                 recortar_imagen_alicuota_3(ruta_imagen)
