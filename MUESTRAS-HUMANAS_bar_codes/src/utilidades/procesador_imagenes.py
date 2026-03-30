@@ -6,7 +6,8 @@ from PIL import Image
 def recortar_imagen_alicuota_3(ruta_imagen):
     """
     Recorta imagen para Alícuota 3.
-    El código está a la IZQUIERDA — toma 1/2 del ancho desde el inicio.
+    El código está a la IZQUIERDA — elimina 1/3 del lado derecho (espacio vacío).
+    Mantiene los primeros 2/3 del ancho desde la izquierda.
     Args:
         ruta_imagen (str): Ruta de la imagen
     Returns:
@@ -15,7 +16,7 @@ def recortar_imagen_alicuota_3(ruta_imagen):
     try:
         img = Image.open(ruta_imagen)
         ancho, alto = img.size
-        nuevo_ancho = int(ancho * 1/2)  # 50% — antes era 1/3 (33%, cortaba el barcode)
+        nuevo_ancho = int(ancho * 2/3)  # Elimina 1/3 derecho vacío — mantiene 2/3 izquierdo
         img_recortada = img.crop((0, 0, nuevo_ancho, alto))
         img_recortada.save(ruta_imagen)
         return True
